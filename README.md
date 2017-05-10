@@ -13,7 +13,7 @@ npm install -g node-minio-cli
 ```bash
 export NMC_HOST=<minio-server-address>
 export NMC_PORT=<minio-port>
-export NMC_SECURE=<true | false>
+export NMC_SECURE=<1|0>
 export NMC_ACCESS_KEY=<access-key>
 export NMC_SECRET_KEY=<secret-key>
 ```
