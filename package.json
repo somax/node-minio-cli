@@ -1,16 +1,16 @@
 {
   "name": "node-minio-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Minio cli with nodejs",
   "main": "index.js",
-  "bin":{
-    "nmc":"index.js"
-    },
-  "scripts": {
+  "bin": {
+    "nmc": "index.js"
   },
+  "scripts": {},
   "author": "MaXiaojun<somaxj@163.com>",
   "license": "ISC",
   "dependencies": {
+    "inquirer": "^3.0.6",
     "minio": "^3.1.3"
   }
 }

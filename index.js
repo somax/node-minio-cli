@@ -2,6 +2,12 @@
 
 const Minio = require('minio');
 const fs = require('fs');
+const inquirer = require('inquirer');
+
+
+const cmd = process.argv[2];
+const args = process.argv.slice(3);
+const exit = process.exit;
 
 const minioClient = new Minio.Client({
     endPoint: process.env.NMC_HOST,
@@ -18,17 +24,26 @@ const pkg = require('./package.json');
 const cmds = {
     version: getVersion,
     help: showHelp,
-    buckets: () => {
-        minioClient.listBuckets(function (err, buckets) {
-            if (err) return console.log(err);
-            console.log('buckets :', buckets);
-            process.exit();
+    new: (bucketName, region) => {
+        region = region || 'us-east-1';
+        minioClient.makeBucket(bucketName, region, function (err) {
+            if (err) return errorHandler(err);
+            console.log(`Bucket created successfully in ${region}.`);
+            exit();
         });
     },
-    list: (bucket) => {
-        let stream = minioClient.listObjectsV2(bucket, '', true);
-        stream.on('data', function (obj) { console.log(obj); });
-        stream.on('error', errorHandler);
+    ls: (bucketName) => {
+        if (!bucketName) {
+            minioClient.listBuckets(function (err, buckets) {
+                if (err) return console.log(err);
+                console.log('Buckets:\n', buckets);
+                process.exit();
+            });
+        } else {
+            let stream = minioClient.listObjectsV2(bucketName, '', true);
+            stream.on('data', function (obj) { console.log(obj); });
+            stream.on('error', errorHandler);
+        }
 
     },
     get: (bucketName, objectName) => {
@@ -59,23 +74,52 @@ const cmds = {
                 return errorHandler(err);
             }
             minioClient.putObject(bucketName, objectName, fileStream, stats.size, function (err, etag) {
-                return console.log(err, etag); // err should be null
+                if (err) {
+                    return errorHandler(err);
+                } else {
+                    console.log(`Upload ${objectName} to ${bucketName} successfully.\nEtag: ${etag}`);
+                    exit();
+                }
             });
+        });
+    },
+    rm: (bucketName, objectName) => {
+        if(!bucketName){
+            errorHandler('Remove what?');
+        }
+        let questions = [{ type: 'confirm', name: 'delete', default: false, message: 'Do you know what you are doing now?' }];
+        inquirer.prompt(questions).then(function (answers) {
+            if (answers.delete) {
+                if (!objectName) {
+                    // remove bucket
+                    minioClient.removeBucket(bucketName, function (err) {
+                        if (err) return errorHandler(err);
+                        console.log('Bucket removed successfully.');
+                        exit();
+                    });
+                } else {
+                    // remove object
+                    minioClient.removeObject(bucketName, objectName, function (err) {
+                        if (err) {
+                            return errorHandler(err);
+                        }
+                        console.log('The object removed successfully.');
+                        exit();
+                    });
+                }
+            }
         });
     }
 };
 
 
-let cmd = process.argv[2];
-let args = process.argv.slice(3);
 
-
-let exit = process.exit;
 
 if (!cmd) {
     getVersion();
     showHelp();
 }
+
 
 try {
     cmds[cmd](...args);
@@ -83,10 +127,11 @@ try {
     errorHandler(err);
 }
 
+
 function errorHandler(err) {
     console.error('Error:', `Running "${cmd}" failed!`, '\n');
-    console.error(err);
-    process.exit(1);
+    console.error(typeof err === 'string' ? err : err.message);
+    exit(1);
 }
 
 function getVersion() {
@@ -102,10 +147,13 @@ function showHelp() {
     nmc lists myBucket
 
 Commands:
-    buckets
-    lists <bucketName>
-    get <bucketName> <objectName>
-    up <bucketName> <path/fileName>
+    new <bucketName>                  - Add new bucket
+    ls                                - List buckets
+    ls  <bucketName>                  - List objects in the bucket
+    rm  <bucketName>                  - Remove the bucket
+    rm  <bucketName> <objectName>     - Delete object from the bucket
+    get <bucketName> <objectName>     - Download object from th bucket
+    up  <bucketName> <path/fileName>  - Upload object to the bucket
     `);
 
     exit();
